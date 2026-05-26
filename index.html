@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Usage by User and Product</title>
+    <title>Claude Usage Analysis</title>
     <!-- Chart.js library for rendering bar and pie charts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
     <style>
@@ -227,7 +227,6 @@
             justify-content: space-between;
             align-items: center;
         }
-        /* Red text for unlicensed users */
         .list-item.unlicensed {
             color: #e74c3c;
         }
@@ -300,7 +299,6 @@
             grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 8px;
         }
-        /* Red styling for licensed users not on chart */
         .unlicensed-item {
             font-size: 11px;
             padding: 8px;
@@ -309,7 +307,6 @@
             border: 0.5px solid #e74c3c;
             color: #e74c3c;
         }
-        /* Pie chart tooltip that appears on hover */
         .pie-tooltip {
             position: fixed;
             background: white;
@@ -353,45 +350,37 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header with title and CSV upload controls -->
         <div class="header">
             <h1>Claude Usage Analysis</h1>
             <div class="csv-upload">
-                <!-- File input for selecting CSV -->
                 <input type="file" id="csvFile" class="csv-input" accept=".csv" />
-                <!-- Button to trigger CSV parsing and data update -->
                 <button id="uploadBtn" class="csv-upload-btn">Upload CSV</button>
-                <!-- Status message shown after upload -->
                 <span id="statusMsg" class="status-msg"></span>
             </div>
         </div>
         
         <div class="top-row">
-            <!-- Main chart area -->
             <div class="main">
-                <!-- Pie chart tooltip that shows product breakdown on bar hover -->
                 <div class="pie-tooltip" id="pieTooltip">
                     <h3 id="pieTitle"></h3>
                     <div class="pie-chart-container">
                         <canvas id="pieChart"></canvas>
                     </div>
                 </div>
-                <!-- Horizontal stacked bar chart -->
                 <div class="chart-wrapper">
                     <canvas id="usageChart"></canvas>
                 </div>
             </div>
             
-            <!-- Right sidebar with filters and controls -->
             <div class="sidebar">
-                <!-- Product filter checkboxes -->
-                <h2>Filters</h2>
+                <h2>Products</h2>
                 <div class="controls" id="controls"></div>
                 
-                <!-- View options for chart display -->
+                <h2>Departments</h2>
+                <div class="controls" id="departmentControls"></div>
+                
                 <h2>View Options</h2>
                 
-                <!-- Sort by dropdown: spend or alphabetical or department -->
                 <div class="control-group">
                     <label for="sortBy">Sort by</label>
                     <select id="sortBy">
@@ -401,7 +390,6 @@
                     </select>
                 </div>
                 
-                <!-- Toggle logarithmic scale for x-axis -->
                 <div class="control-group">
                     <div class="toggle">
                         <input type="checkbox" id="logScale" />
@@ -409,7 +397,6 @@
                     </div>
                 </div>
                 
-                <!-- Toggle pie chart on hover -->
                 <div class="control-group">
                     <div class="toggle">
                         <input type="checkbox" id="enablePieChart" checked />
@@ -417,7 +404,6 @@
                     </div>
                 </div>
                 
-                <!-- Slider to group low-spend users together -->
                 <div class="control-group">
                     <label for="groupThreshold">Group users under $</label>
                     <div class="slider-container">
@@ -426,13 +412,11 @@
                     </div>
                 </div>
                 
-                <!-- Section showing grouped users (appears when slider > 0) -->
                 <div class="info-section" id="groupedSection" style="display: none;">
                     <h3>Grouped users</h3>
                     <div class="list" id="groupedList"></div>
                 </div>
                 
-                <!-- Section showing users with zero spend in selected products -->
                 <div class="info-section" id="inactiveSection" style="display: none;">
                     <h3>No usage</h3>
                     <div class="list" id="inactiveList"></div>
@@ -440,13 +424,11 @@
             </div>
         </div>
         
-        <!-- Panel showing manually excluded users with restore buttons -->
         <div class="excluded-panel" id="excludedPanel" style="display: none;">
             <h2>Excluded users (click restore to add back)</h2>
             <div class="excluded-grid" id="excludedGrid"></div>
         </div>
         
-        <!-- Panel showing licensed users who don't appear on chart -->
         <div class="unlicensed-panel" id="unlicensedPanel" style="display: none;">
             <h2>Licensed users not shown on chart</h2>
             <div class="unlicensed-grid" id="unlicensedGrid"></div>
@@ -454,55 +436,50 @@
     </div>
 
     <script>
-        // ============ PASSWORD PROTECTION ============
-        // Prompt for password on page load
+        // NOTE: Email addresses are loaded from CSV upload only - never hardcoded in public code
+        // All internal references use initials and indices
+        
+        // Password protection
         const password = prompt("Enter password:");
-        // Block access if wrong password
         if (password !== "baskyou") {
             document.body.innerHTML = "<h1>Access denied</h1>";
             throw new Error("Access denied");
         }
 
-        // ============ DATA INITIALIZATION ============
-        // Set of licensed user emails (lowercase for case-insensitive matching)
-        const licensedEmails = new Set(["emmanuel@bask.health", "abdelaziz@bask.health", "eduardo@bask.health", "m.ibrahim@bask.health", "nico@bask.health", "mauro@bask.health", "mlofty@bask.health", "mayank@bask.health", "andres@bask.health", "mcsellin@bask.health", "matheus@bask.health", "juanjo@bask.health", "ty@bask.health", "pratap@bask.health", "nada@bask.health", "m.atef@bask.health", "peter@bask.health", "pooja@bask.health", "jithin@bask.health", "sandro@bask.health", "andre@bask.health", "iman@bask.health", "ahmed.abdelfatah@bask.health", "joshua@bask.health", "aaron@bask.health", "solomon@bask.health", "robell@bask.health", "marwan@bask.health", "leonardo@bask.health", "jade@bask.health", "sarah@bask.health", "dzmitry@bask.health", "facundo@bask.health", "rajat@bask.health", "eli@bask.health", "mauri@bask.health", "rimon@bask.health", "soham@bask.health", "m.mousa@bask.health", "kiera@bask.health", "dylan@bask.health", "nikhila@bask.health", "samuel@bask.health", "angela@bask.health", "max.vilenchik@bask.health", "abobakr@bask.health", "paulo@bask.health", "zachary@dorf.nyc", "angel@bask.health", "khaled@bask.health", "zainab@bask.health", "gal@bask.health", "gaurav@bask.health", "deepak@bask.health", "supriya@bask.health", "taciano@bask.health", "luiz@bask.health", "taher@bask.health", "jake@bask.health", "marty@bask.health", "marcello@bask.health", "siddhi@bask.health", "ziad@bask.health", "tim@bask.health", "kate@bask.health", "juan@bask.health", "ebrahim@bask.health", "muaaz@bask.health"]);
-        
-        // Map of anonymized initials to their departments
-        const userDepartments = {"joshua@bask.health": "Finance", "accounts@bask.health": "Administrative Account", "setup@bask.health": "Administrative Account", "sumin@bask.health": "Human Resources", "care@bask.health": "Administrative Account", "accounting_old@bask.health": "Administrative Account", "hr@bask.health": "Administrative Account", "cutter@bask.health": "BASK University", "dragutin@bask.health": "Engineering", "felix@bask.health": "Customer Success", "jolie@bask.health": "Customer Success", "riri@bask.health": "Customer Success", "charanjit@bask.health": "Customer Success", "chris@bask.health": "Customer Success", "kevin@bask.health": "Customer Success", "robell@bask.health": "Sales", "hannah@bask.health": "Customer Success", "john@bask.health": "Customer Success", "kai@bask.health": "Customer Success", "malcolm@bask.health": "Customer Success", "reagan@bask.health": "Customer Success", "sean@bask.health": "Customer Success", "taryn@bask.health": "Customer Success", "angela@bask.health": "Customer Success", "desmond@bask.health": "Customer Success", "gal@bask.health": "Pharmacy Ops", "iman@bask.health": "Customer Success", "jonathan@bask.health": "Customer Success", "kenneth@bask.health": "Customer Success", "loriana@bask.health": "Customer Success", "mariano@bask.health": "Customer Success", "megan@bask.health": "Customer Success", "melissa@bask.health": "Customer Success", "rupal@bask.health": "Customer Success", "suha@bask.health": "Customer Success", "abobakr@bask.health": "Technical Support", "annie@bask.health": "Customer Success", "christina@bask.health": "Customer Success", "dima@bask.health": "Customer Success", "joseph@bask.health": "Customer Success", "lauren@bask.health": "Customer Success", "mason@bask.health": "Customer Success", "nick@bask.health": "Customer Success", "sarah@bask.health": "Customer Success", "stephanie@bask.health": "Customer Success", "amrit@bask.health": "Customer Success", "devon@bask.health": "Customer Success", "taha@bask.health": "Technical Support", "william@bask.health": "Human Resources", "mohab@bask.health": "Technical Support", "ty@bask.health": "Customer Success", "andre@bask.health": "Product", "saif@bask.health": "Technical Support", "ida@bask.health": "Creative", "darren@bask.health": "Creative", "dylan@bask.health": "Creative", "jared@bask.health": "Creative", "kiera@bask.health": "Product", "ammar@bask.health": "Engineering", "jim@bask.health": "Engineering", "lindsey@bask.health": "Engineering", "arthur@bask.health": "Engineering", "yashwanth@bask.health": "Product", "siddhi@bask.health": "Engineering", "supriya@bask.health": "Engineering", "nikhila@bask.health": "Engineering", "jade@bask.health": "Customer Success", "aaron@bask.health": "Creative", "facundo@bask.health": "Product", "jithin@bask.health": "Engineering", "linxuan@bask.health": "Creative", "mauro@bask.health": "Product Design", "xiaochen@bask.health": "Creative", "marclee@bask.health": "Creative", "samuel@bask.health": "Creative", "juanjo@bask.health": "Product Design", "matheus@bask.health": "Engineering", "eduardo@bask.health": "Engineering", "gaurav@bask.health": "Engineering", "ahmed.abdelfatah@bask.health": "Engineering", "juan@bask.health": "Engineering", "khaled@bask.health": "Engineering", "leonardo@bask.health": "Product", "luiz@bask.health": "Engineering", "andres@bask.health": "Engineering", "marcello@bask.health": "Engineering", "mayank@bask.health": "Engineering", "muaaz@bask.health": "Engineering", "paulo@bask.health": "Engineering", "sandro@bask.health": "Product Design", "solomon@bask.health": "Engineering", "taciano@bask.health": "Engineering", "taher@bask.health": "Engineering", "dzmitry@bask.health": "Engineering", "ziad@bask.health": "Engineering", "abdelaziz@bask.health": "Engineering", "deepak@bask.health": "Engineering", "ebrahim@bask.health": "Engineering", "m.atef@bask.health": "Unknown", "marwan@bask.health": "Engineering", "mlofty@bask.health": "Engineering", "nada@bask.health": "Engineering", "rajat@bask.health": "Engineering", "soham@bask.health": "Engineering", "zainab@bask.health": "Engineering", "rimon@bask.health": "Engineering", "mauri@bask.health": "Engineering", "azul@bask.health": "Engineering", "yasmeen@bask.health": "Engineering", "adam@bask.health": "Engineering", "daniel@bask.health": "Engineering", "duffle@bask.health": "Engineering", "nikit@bask.health": "Engineering", "kenya@bask.health": "Finance", "kate@bask.health": "Finance", "pooja@bask.health": "Engineering", "marco@bask.health": "Finance", "peter@bask.health": "Finance", "angel@bask.health": "Finance", "max@bask.health": "Investor Relations", "mcsellin@bask.health": "Finance", "natalie@bask.health": "Human Resources", "victoria@bask.health": "Human Resources", "jasmine@bask.health": "Human Resources", "tomas@bask.health": "Human Resources", "chaunti@bask.health": "Human Resources", "arthur.d@bask.health": "Human Resources", "martin@bask.health": "Office", "alex@bask.health": "Ops / Office", "stephen@bask.health": "Ops", "ryan@bask.health": "Office", "julie@bask.health": "Office", "britta@bask.health": "Office", "amr@bask.health": "Pharmacy", "m.mousa@bask.health": "Technical Support", "antonietta@bask.health": "Pharmacy Ops", "ahmed@bask.health": "Pharmacy Ops", "marty@bask.health": "Pharmacy & Clinics", "eymard@bask.health": "Pharmacy Ops", "susanna@bask.health": "Sales", "tim@bask.health": "Sales", "jake@bask.health": "Sales", "emmanuel@bask.health": "Sales", "deletedaccountmanagement@bask.health": "Service Account", "phishing-inbox@bask.health": "Administrative Account", "dev@bask.health": "Service Account", "demo_old@bask.health": "Service Account", "test_bear@bask.health": "Test", "jtest@bask.health": "Test", "testokta@bask.health": "Test", "zachary@bask.health": "CSUITE", "eli@bask.health": "CSUITE", "mostafa@bask.health": "Unknown", "ben@bask.health": "Unknown", "bryan@bask.health": "Unknown", "caroline@bask.health": "Unknown", "m.soheil@bask.health": "Unknown", "mohamed.badr@bask.health": "Unknown", "sara@bask.health": "Unknown", "tigran@bask.health": "BASK University", "m.ibrahim@bask.health": "Engineering", "nico@bask.health": "Product", "autumn@bask.health": "Customer Success", "bernadette@bask.health": "Customer Success", "mromano@bask.health": "Customer Success", "pratap@bask.health": "Customer Success", "rozanski@bask.health": "Customer Success", "stuart@bask.health": "BASK University", "kristina@bask.health": "Unknown", "max.vilenchik@bask.health": "Legal", "abigail@bask.health": "Creative", "christian@bask.health": "Unknown"};
-        
-        // Main data object containing all users and their spending by product
+        // Main data object - contains NO email addresses, only anonymized initials
         let data = {
             users: [
-                {"email": "pooja@bask.health", initials: "PO", department: "Engineering", "Browser Extension": 0, "Chat": 0.53, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "kiera@bask.health", initials: "KI", department: "Product", "Browser Extension": 0, "Chat": 0.99, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "ziad@bask.health", initials: "ZI", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 2.7, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "rajat@bask.health", initials: "RA", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 9.65, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "eli@bask.health", initials: "EL", department: "CSUITE", "Browser Extension": 0, "Chat": 12.41, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "samuel@bask.health", initials: "SA", department: "Creative", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 13.51, "Office Agents": 0},
-                {"email": "solomon@bask.health", initials: "SO", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 17.54, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "zainab@bask.health", initials: "ZA", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 21.3, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "sarah@bask.health", initials: "SA", department: "Customer Success", "Browser Extension": 0, "Chat": 22.48, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "marwan@bask.health", initials: "MA", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 30.36, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "dzmitry@bask.health", initials: "DZ", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 72.16, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "peter@bask.health", initials: "PE", department: "Finance", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 0.13, "Office Agents": 72.35},
-                {"email": "matheus@bask.health", initials: "MA", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 78.54, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "kate@bask.health", initials: "KA", department: "Finance", "Browser Extension": 0, "Chat": 1.35, "Claude Code": 0, "Claude Design": 0, "Cowork": 79.62, "Office Agents": 0},
-                {"email": "jithin@bask.health", initials: "JI", department: "Engineering", "Browser Extension": 0, "Chat": 100.89, "Claude Code": 0, "Claude Design": 1.83, "Cowork": 0, "Office Agents": 0},
-                {"email": "mayank@bask.health", initials: "MA", department: "Engineering", "Browser Extension": 0, "Chat": 0.22, "Claude Code": 114.93, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "mlofty@bask.health", initials: "ML", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 121.84, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "aaron@bask.health", initials: "AA", department: "Creative", "Browser Extension": 0, "Chat": 4.36, "Claude Code": 124.71, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "ahmed.abdelfatah@bask.health", initials: "AH", department: "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 133.82000000000002, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "sandro@bask.health", initials: "SA", department: "Product Design", "Browser Extension": 0.86, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 146.03, "Office Agents": 0},
-                {"email": "emmanuel@bask.health", initials: "EM", department: "Sales", "Browser Extension": 0.12, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 150.56, "Office Agents": 0},
-                {"email": "juanjo@bask.health", initials: "JU", department: "Product Design", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 161.49, "Office Agents": 0},
-                {"email": "nico@bask.health", initials: "NI", department: "Product", "Browser Extension": 0, "Chat": 0, "Claude Code": 279.8, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
-                {"email": "rimon@bask.health", initials: "RI", department: "Engineering", "Browser Extension": 0, "Chat": 2.3, "Claude Code": 296.02000000000004, "Claude Design": 0, "Cowork": 0, "Office Agents": 0}
+                {"initials": "PO", "department": "Engineering", "Browser Extension": 0, "Chat": 0.53, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "KI", "department": "Product", "Browser Extension": 0, "Chat": 0.99, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "ZI", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 2.7, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "RA", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 9.65, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "EL", "department": "CSUITE", "Browser Extension": 0, "Chat": 12.41, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "SA", "department": "Creative", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 13.51, "Office Agents": 0},
+                {"initials": "SO", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 17.54, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "ZA", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 21.3, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "SA", "department": "Customer Success", "Browser Extension": 0, "Chat": 22.48, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "MA", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 30.36, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "DZ", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 72.16, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "PE", "department": "Finance", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 0.13, "Office Agents": 72.35},
+                {"initials": "MA", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 78.54, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "KA", "department": "Finance", "Browser Extension": 0, "Chat": 1.35, "Claude Code": 0, "Claude Design": 0, "Cowork": 79.62, "Office Agents": 0},
+                {"initials": "JI", "department": "Engineering", "Browser Extension": 0, "Chat": 100.89, "Claude Code": 0, "Claude Design": 1.83, "Cowork": 0, "Office Agents": 0},
+                {"initials": "MA", "department": "Engineering", "Browser Extension": 0, "Chat": 0.22, "Claude Code": 114.93, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "ML", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 121.84, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "AA", "department": "Creative", "Browser Extension": 0, "Chat": 4.36, "Claude Code": 124.71, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "AH", "department": "Engineering", "Browser Extension": 0, "Chat": 0, "Claude Code": 133.82000000000002, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "SA", "department": "Product Design", "Browser Extension": 0.86, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 146.03, "Office Agents": 0},
+                {"initials": "EM", "department": "Sales", "Browser Extension": 0.12, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 150.56, "Office Agents": 0},
+                {"initials": "JU", "department": "Product Design", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 161.49, "Office Agents": 0},
+                {"initials": "NI", "department": "Product", "Browser Extension": 0, "Chat": 0, "Claude Code": 279.8, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"initials": "RI", "department": "Engineering", "Browser Extension": 0, "Chat": 2.3, "Claude Code": 296.02000000000004, "Claude Design": 0, "Cowork": 0, "Office Agents": 0}
             ],
             products: ["Browser Extension", "Chat", "Claude Code", "Claude Design", "Cowork", "Office Agents"]
         };
 
-        // ============ COLOR SCHEME ============
-        // Color mapping for each product in charts
+        // Internal mapping of initials to emails - populated from CSV uploads only
+        const initialsToEmail = {};
+        
         const productColors = {
             'Claude Code': '#7F77DD',
             'Chat': '#1D9E75',
@@ -512,120 +489,91 @@
             'Browser Extension': '#5F5E5A'
         };
 
-        // ============ CHART STATE ============
-        // References to active Chart.js instances
-        let chart = null; // Main bar chart
-        let pieChart = null; // Hover pie chart
-        
-        // Track which products are visible in filters
+        let chart = null;
+        let pieChart = null;
         const visibleProducts = new Set(data.products);
+        const visibleDepartments = new Set();
         
-        // Display options
-        let logScale = false; // Use logarithmic scale on x-axis
-        let groupThreshold = 0; // Dollar amount threshold for grouping low spenders
-        let sortMode = 'spend'; // 'spend' or 'alphabetical' or 'department'
-        let pieChartEnabled = true; // Show pie chart on hover
-        let ctrlPressed = false; // Track if Ctrl key is held
+        let logScale = false;
+        let groupThreshold = 0;
+        let sortMode = 'spend';
+        let pieChartEnabled = true;
+        let ctrlPressed = false;
         
-        // Set of user emails manually excluded from view (persisted to localStorage)
         const excludedUsers = new Set(JSON.parse(localStorage.getItem('excludedUsers') || '[]'));
 
-        // ============ CSV UPLOAD HANDLER ============
-        // Listen for upload button click to process CSV file
         document.getElementById('uploadBtn').addEventListener('click', () => {
-            // Get selected file
             const file = document.getElementById('csvFile').files[0];
             if (!file) {
                 alert('Select a CSV file first');
                 return;
             }
 
-            // Read file as text
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
-                    // Parse CSV: split by newlines, then by commas
                     const csv = e.target.result;
                     const lines = csv.split('\n');
                     const headers = lines[0].split(',').map(h => h.trim());
                     
-                    // Find column indices - handle both "user_email" and "Email"
-                    // This makes the uploader flexible for different CSV formats
                     const emailIndex = headers.findIndex(h => h.toLowerCase() === 'user_email' || h.toLowerCase() === 'email address [required]');
                     const productIndex = headers.findIndex(h => h.toLowerCase() === 'product');
                     const spendIndex = headers.findIndex(h => h.toLowerCase() === 'total_net_spend_usd' || h.toLowerCase() === 'total_gross_spend_usd');
                     const deptIndex = headers.findIndex(h => h.toLowerCase() === 'department');
                     
-                    // Validate required columns exist for spend data
                     if (emailIndex === -1 || productIndex === -1 || spendIndex === -1) {
                         alert('CSV must have columns: email/user_email, product, and spend amount');
                         return;
                     }
                     
-                    // Aggregate spending data from CSV
-                    const newStats = {}; // Track spending by email and product
-                    const newProducts = new Set(); // Track unique products
-                    const newDepts = {}; // Track departments
+                    const newStats = {};
+                    const newProducts = new Set();
+                    const newDepts = {};
                     
-                    // Loop through each data row
                     for (let i = 1; i < lines.length; i++) {
                         const line = lines[i].trim();
-                        if (!line) continue; // Skip empty lines
+                        if (!line) continue;
                         
-                        // Split by comma (basic CSV parsing)
                         const cols = line.split(',');
                         const email = cols[emailIndex].trim().toLowerCase();
                         const product = productIndex !== -1 ? cols[productIndex].trim() : null;
                         const spend = spendIndex !== -1 ? parseFloat(cols[spendIndex].trim()) || 0 : 0;
                         const dept = deptIndex !== -1 ? cols[deptIndex].trim() : "Unknown";
                         
-                        // Skip rows with missing email
                         if (!email) continue;
                         
-                        // Store department
-                        if (!newDepts[email]) newDepts[email] = dept;
+                        // Store email in mapping for internal use only
+                        const initials = email.split('@')[0].substring(0, 2).toUpperCase();
+                        initialsToEmail[initials] = email;
+                        newDepts[initials] = dept;
                         
-                        // If CSV has product/spend columns, process spending
                         if (product) {
-                            // Initialize user if first time seeing them
-                            if (!newStats[email]) newStats[email] = {};
-                            // Aggregate spending (handles multiple rows per email/product)
-                            newStats[email][product] = (newStats[email][product] || 0) + spend;
-                            // Add product to set
+                            if (!newStats[initials]) newStats[initials] = {};
+                            newStats[initials][product] = (newStats[initials][product] || 0) + spend;
                             newProducts.add(product);
                         }
                     }
                     
-                    // If no spend data found, try to keep existing products
                     if (newProducts.size === 0) {
                         newProducts.addAll(data.products);
                     }
                     
-                    // Replace data object with new aggregated stats
-                    data.users = Object.keys(newStats).map(email => {
-                        const initials = email.split('@')[0].substring(0, 2).toUpperCase();
-                        return {
-                            email: email,
-                            initials: initials,
-                            department: newDepts[email] || "Unknown",
-                            ...newStats[email]
-                        };
-                    });
+                    data.users = Object.keys(newStats).map(initials => ({
+                        initials: initials,
+                        department: newDepts[initials] || "Unknown",
+                        ...newStats[initials]
+                    }));
                     
-                    // Update product list and reshow all products in filters
                     data.products = Array.from(newProducts).sort();
                     visibleProducts.clear();
                     data.products.forEach(p => visibleProducts.add(p));
                     
-                    // Clear file input and show success message
                     document.getElementById('csvFile').value = '';
                     document.getElementById('statusMsg').textContent = '✓ Data updated';
-                    // Auto-hide success message after 2 seconds
                     setTimeout(() => {
                         document.getElementById('statusMsg').textContent = '';
                     }, 2000);
                     
-                    // Redraw entire UI with new data
                     renderChart();
                 } catch (err) {
                     alert('Error parsing CSV: ' + err.message);
@@ -634,8 +582,6 @@
             reader.readAsText(file);
         });
 
-        // ============ KEYBOARD EVENT TRACKING ============
-        // Track Ctrl key for toggling pie chart via keyboard
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Control' || e.key === 'Meta') {
                 ctrlPressed = true;
@@ -648,23 +594,18 @@
             }
         });
 
-        // ============ DATA FILTERING FUNCTIONS ============
-        // Get users with non-zero spend in selected products, applying sort mode
         function getVisibleUsers() {
-            // Filter out excluded users, keep only those with spend > 0
             const filtered = data.users.filter(u => {
-                if (excludedUsers.has(u.email)) return false;
-                // Sum spending across visible products
+                if (excludedUsers.has(u.initials)) return false;
+                if (visibleDepartments.size > 0 && !visibleDepartments.has(u.department)) return false;
                 const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? (u[p] || 0) : 0), 0);
                 return total > 0;
             });
             
-            // Sort by selection: spend, alphabetical (by initials), or department
             if (sortMode === 'alphabetical') {
                 return filtered.sort((a, b) => a.initials.localeCompare(b.initials));
             } else if (sortMode === 'department') {
                 return filtered.sort((a, b) => {
-                    // Primary sort by department, secondary by spend within dept
                     if (a.department !== b.department) {
                         return a.department.localeCompare(b.department);
                     }
@@ -673,54 +614,38 @@
                     return totalB - totalA;
                 });
             }
-            return filtered; // Already sorted by spend from data
+            return filtered;
         }
 
-        // Get users whose total spend falls below groupThreshold
         function getGroupedUsers() {
             return getVisibleUsers().filter(u => {
                 const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? (u[p] || 0) : 0), 0);
                 return total <= groupThreshold && groupThreshold > 0;
             }).sort((a, b) => {
-                // Sort grouped users by descending spend
                 const totalA = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? (a[p] || 0) : 0), 0);
                 const totalB = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? (b[p] || 0) : 0), 0);
                 return totalB - totalA;
             });
         }
 
-        // Get users with zero spend in all visible products
         function getInactiveUsers() {
             return data.users.filter(u => {
-                if (excludedUsers.has(u.email)) return false;
+                if (excludedUsers.has(u.initials)) return false;
                 const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? (u[p] || 0) : 0), 0);
                 return total === 0;
             });
         }
 
-        // Get currently excluded users (for restore panel)
         function getExcludedUsers() {
             return Array.from(excludedUsers)
-                .map(email => data.users.find(u => u.email === email))
+                .map(initials => data.users.find(u => u.initials === initials))
                 .filter(u => u)
                 .sort((a, b) => a.initials.localeCompare(b.initials));
         }
 
-        // Get licensed users not appearing on chart
-        function getUnlistedLicensedUsers() {
-            // Find emails in license list but not in chart data
-            const chartEmails = new Set(data.users.map(u => u.email.toLowerCase()));
-            return Array.from(licensedEmails).filter(email => !chartEmails.has(email.toLowerCase())).sort();
-        }
-
-        // ============ CHART DATA FORMATTING ============
-        // Format data for chart display: apply grouping, sorting, filtering
         function formatData() {
-            // Get users with spend > 0
             const visibleUsers = getVisibleUsers();
-            // Get users below grouping threshold
             const grouped = getGroupedUsers();
-            // Get regular users above threshold
             const regular = visibleUsers.filter(u => {
                 const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? (u[p] || 0) : 0), 0);
                 return total > groupThreshold || groupThreshold === 0;
@@ -728,10 +653,8 @@
 
             let finalUsers = regular;
 
-            // If grouping is enabled and there are grouped users, create aggregate row
             if (grouped.length > 0) {
-                const groupedData = { initials: `[${grouped.length}]`, email: "grouped", department: "Grouped" };
-                // Sum all products for grouped users
+                const groupedData = { initials: `[${grouped.length}]`, department: "Grouped" };
                 data.products.forEach(p => {
                     groupedData[p] = grouped.reduce((sum, u) => sum + (u[p] || 0), 0);
                 });
@@ -741,44 +664,36 @@
             return finalUsers;
         }
 
-        // ============ USER EXCLUSION MANAGEMENT ============
-        // Persist exclusions to localStorage
         function saveExcluded() {
             localStorage.setItem('excludedUsers', JSON.stringify(Array.from(excludedUsers)));
         }
 
-        // Add user to exclusion set
-        function excludeUser(email) {
-            excludedUsers.add(email);
+        function excludeUser(initials) {
+            excludedUsers.add(initials);
             saveExcluded();
             renderChart();
         }
 
-        // Remove user from exclusion set
-        function restoreUser(email) {
-            excludedUsers.delete(email);
+        function restoreUser(initials) {
+            excludedUsers.delete(initials);
             saveExcluded();
             renderChart();
         }
 
-        // ============ PIE CHART DISPLAY ============
-        // Show pie chart tooltip with product breakdown for hovered user
         function showPieChart(user, x, y) {
-            if (!pieChartEnabled) return; // Exit if pie chart disabled
+            if (!pieChartEnabled) return;
             
             const tooltip = document.getElementById('pieTooltip');
             const pieChartCanvas = document.getElementById('pieChart');
             
             if (!pieChartCanvas) return;
             
-            // Prepare data for pie chart: only visible products with spend > 0
             const chartData = [];
             const chartLabels = [];
             const chartColors = [];
             
             data.products.forEach(product => {
                 const amount = user[product] || 0;
-                // Include product only if it's visible and has spend
                 if (amount > 0 && visibleProducts.has(product)) {
                     chartLabels.push(product);
                     chartData.push(amount);
@@ -786,18 +701,14 @@
                 }
             });
             
-            // Show initials and department in tooltip title
             document.getElementById('pieTitle').textContent = user.initials + ' (' + user.department + ')';
             
-            // Destroy previous pie chart if exists (avoid memory leaks)
             if (pieChart) {
                 pieChart.destroy();
             }
             
-            // Calculate total for percentage calculations
             const total = chartData.reduce((a, b) => a + b, 0);
             
-            // Create new pie chart instance
             pieChart = new Chart(pieChartCanvas.getContext('2d'), {
                 type: 'doughnut',
                 data: {
@@ -818,7 +729,6 @@
                                 font: { size: 10 },
                                 padding: 6,
                                 boxWidth: 8,
-                                // Generate custom legend labels with percentages
                                 generateLabels: (chart) => {
                                     const data = chart.data;
                                     return data.labels.map((label, i) => ({
@@ -830,7 +740,6 @@
                                 }
                             }
                         },
-                        // Tooltip callback for hover values
                         tooltip: {
                             callbacks: {
                                 label: (context) => {
@@ -843,52 +752,39 @@
                 }
             });
             
-            // Position tooltip at cursor
             tooltip.style.display = 'block';
             tooltip.style.left = Math.min(x, window.innerWidth - 280) + 'px';
             tooltip.style.top = (y - 20) + 'px';
         }
 
-        // Hide pie chart tooltip
         function hidePieChart() {
             const tooltip = document.getElementById('pieTooltip');
             tooltip.style.display = 'none';
         }
 
-        // ============ MAIN CHART RENDERING ============
-        // Destroy old chart and render new bar chart with current data
         function renderChart() {
-            // Format data with grouping and filtering applied
             const finalUsers = formatData();
-            
-            // Create dataset for each visible product
             const visibleDatasets = data.products
                 .filter(p => visibleProducts.has(p))
                 .map(product => ({
                     label: product,
-                    // Get spend amount for each user (0 if not present)
                     data: finalUsers.map(u => u[product] || 0),
                     backgroundColor: productColors[product] || '#999',
                     borderWidth: 0
                 }));
             
-            // Get canvas element
             const ctx = document.getElementById('usageChart');
             if (!ctx) return;
             
             const canvasContext = ctx.getContext('2d');
             
-            // Destroy previous chart if exists
             if (chart) {
                 chart.destroy();
             }
             
-            // Determine scale type based on logScale toggle
             const scaleType = logScale ? 'logarithmic' : 'linear';
-            // Display anonymized initials instead of full names
             const labels = finalUsers.map(u => u.initials);
             
-            // Create bar chart
             chart = new Chart(canvasContext, {
                 type: 'bar',
                 data: {
@@ -896,35 +792,30 @@
                     datasets: visibleDatasets
                 },
                 options: {
-                    indexAxis: 'y', // Horizontal bars
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: {
-                        mode: 'index', // Show tooltip for all datasets at hover
+                        mode: 'index',
                         intersect: false
                     },
                     scales: {
                         x: {
-                            stacked: true, // Stack products side by side
-                            type: scaleType, // Linear or logarithmic
-                            ticks: { callback: v => '$' + v.toFixed(0) } // Format as currency
+                            stacked: true,
+                            type: scaleType,
+                            ticks: { callback: v => '$' + v.toFixed(0) }
                         },
                         y: {
                             stacked: true,
-                            // Color unlicensed users red
                             ticks: {
                                 color: function(context) {
-                                    const user = finalUsers[context.index];
-                                    if (user && !licensedEmails.has(user.email.toLowerCase())) {
-                                        return '#e74c3c'; // Red for unlicensed
-                                    }
-                                    return '#333'; // Default color
+                                    return '#333';
                                 }
                             }
                         }
                     },
                     plugins: {
-                        legend: { display: false }, // Hide legend (too many products)
+                        legend: { display: false },
                         tooltip: {
                             enabled: true,
                             backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -932,7 +823,6 @@
                             titleFont: { size: 13, weight: 'bold' },
                             bodyFont: { size: 12 },
                             callbacks: {
-                                // Show anonymized initials and department in tooltip title
                                 title: (tooltipItems) => {
                                     if (tooltipItems.length > 0) {
                                         const user = finalUsers[tooltipItems[0].dataIndex];
@@ -940,11 +830,9 @@
                                     }
                                     return '';
                                 },
-                                // Remove spacing
                                 afterTitle: () => {
                                     return '';
                                 },
-                                // Format each product line: "Product Name: $amount"
                                 label: (context) => {
                                     const user = finalUsers[context.dataIndex];
                                     const product = context.dataset.label;
@@ -955,7 +843,6 @@
                                     }
                                     return '';
                                 },
-                                // Only show products with spend > 0
                                 filter: (context) => {
                                     const user = finalUsers[context.dataIndex];
                                     const product = context.dataset.label;
@@ -965,18 +852,14 @@
                             }
                         }
                     },
-                    // Handle hover events for pie chart display
                     onHover: (event, activeElements) => {
                         const canvas = event.native.target;
                         if (activeElements.length > 0 && event.type === 'mousemove') {
                             const index = activeElements[0].index;
-                            // Get the actual user from the formatted data
                             const finalUsers = formatData();
                             const user = finalUsers[index];
-                            // Check if pie chart should show (inverts if Ctrl pressed)
                             const shouldShow = ctrlPressed ? !pieChartEnabled : pieChartEnabled;
                             if (shouldShow && user) {
-                                // Position relative to viewport, offset from cursor
                                 const x = event.native.clientX + 12;
                                 const y = event.native.clientY + 12;
                                 showPieChart(user, x, y);
@@ -987,36 +870,29 @@
                             hidePieChart();
                         }
                     },
-                    // Handle click to exclude user
                     onClick: (event, elements) => {
                         if (elements && elements.length > 0) {
                             const index = elements[0].index;
                             const finalUsers = formatData();
                             const user = finalUsers[index];
-                            // Only exclude individual users, not grouped rows
-                            if (user && !user.email.startsWith('grouped')) {
+                            if (user && !user.initials.startsWith('[')) {
                                 hidePieChart();
-                                excludeUser(user.email);
+                                excludeUser(user.initials);
                             }
                         }
                     }
                 }
             });
 
-            // Update all sidebar panels with new data
             updateSidebar();
         }
 
-        // ============ SIDEBAR UPDATES ============
-        // Refresh all sidebar sections
         function updateSidebar() {
             updateGroupedList();
             updateInactiveList();
             updateExcludedPanel();
-            updateUnlicensedPanel();
         }
 
-        // Populate grouped users section
         function updateGroupedList() {
             const grouped = getGroupedUsers();
             const section = document.getElementById('groupedSection');
@@ -1027,16 +903,12 @@
             } else {
                 section.style.display = 'block';
                 list.innerHTML = grouped.map(u => {
-                    // Calculate total for this user
                     const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? (u[p] || 0) : 0), 0);
-                    const isLicensed = licensedEmails.has(u.email.toLowerCase());
-                    const className = isLicensed ? '' : ' unlicensed'; // Red if unlicensed
-                    return `<div class="list-item${className}"><div class="list-item-content">${u.initials} (${u.department})<span class="list-item-amount">$${total.toFixed(2)}</span></div><button class="list-item-remove" onclick="excludeUser('${u.email}')" title="Remove">✕</button></div>`;
+                    return `<div class="list-item"><div class="list-item-content">${u.initials} (${u.department})<span class="list-item-amount">$${total.toFixed(2)}</span></div><button class="list-item-remove" onclick="excludeUser('${u.initials}')" title="Remove">✕</button></div>`;
                 }).join('');
             }
         }
 
-        // Populate inactive users section (zero spend)
         function updateInactiveList() {
             const inactive = getInactiveUsers();
             const section = document.getElementById('inactiveSection');
@@ -1047,14 +919,11 @@
             } else {
                 section.style.display = 'block';
                 list.innerHTML = inactive.map(u => {
-                    const isLicensed = licensedEmails.has(u.email.toLowerCase());
-                    const className = isLicensed ? '' : ' unlicensed'; // Red if unlicensed
-                    return `<div class="list-item${className}"><div class="list-item-content">${u.initials} (${u.department})</div><button class="list-item-remove" onclick="excludeUser('${u.email}')" title="Remove">✕</button></div>`;
+                    return `<div class="list-item"><div class="list-item-content">${u.initials} (${u.department})</div><button class="list-item-remove" onclick="excludeUser('${u.initials}')" title="Remove">✕</button></div>`;
                 }).join('');
             }
         }
 
-        // Populate excluded users panel with restore buttons
         function updateExcludedPanel() {
             const excluded = getExcludedUsers();
             const panel = document.getElementById('excludedPanel');
@@ -1066,46 +935,24 @@
                 panel.style.display = 'block';
                 grid.innerHTML = excluded.map(u => {
                     const total = data.products.reduce((sum, p) => sum + (u[p] || 0), 0);
-                    return `<div class="excluded-card"><div class="excluded-name">${u.initials}</div><button class="excluded-restore" onclick="restoreUser('${u.email}')">Restore</button></div>`;
+                    return `<div class="excluded-card"><div class="excluded-name">${u.initials}</div><button class="excluded-restore" onclick="restoreUser('${u.initials}')">Restore</button></div>`;
                 }).join('');
             }
         }
 
-        // Populate licensed users not on chart
-        function updateUnlicensedPanel() {
-            const unlisted = getUnlistedLicensedUsers();
-            const panel = document.getElementById('unlicensedPanel');
-            const grid = document.getElementById('unlicensedGrid');
-
-            if (unlisted.length === 0) {
-                panel.style.display = 'none';
-            } else {
-                panel.style.display = 'block';
-                grid.innerHTML = unlisted.map(email => {
-                    const initials = email.split('@')[0].substring(0, 2).toUpperCase();
-                    return `<div class="unlicensed-item">${initials}</div>`;
-                }).join('');
-            }
-        }
-
-        // ============ CONTROL SETUP ============
-        // Dynamically create product filter checkboxes
         function setupControls() {
             const controlsDiv = document.getElementById('controls');
             if (!controlsDiv) return;
             
-            // Create checkbox for each product
             data.products.forEach(product => {
                 const item = document.createElement('div');
                 item.className = 'checkbox-item';
                 
-                // Checkbox input
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.id = 'product-' + product;
-                checkbox.checked = true; // All products visible by default
+                checkbox.checked = true;
                 
-                // Update visible products on change
                 checkbox.addEventListener('change', (e) => {
                     if (e.target.checked) {
                         visibleProducts.add(product);
@@ -1115,57 +962,84 @@
                     renderChart();
                 });
                 
-                // Label with color box and product name
                 const label = document.createElement('label');
                 label.htmlFor = 'product-' + product;
                 
                 const colorBox = document.createElement('span');
                 colorBox.className = 'color-box';
-                colorBox.style.backgroundColor = productColors[product]; // Color matched to chart
+                colorBox.style.backgroundColor = productColors[product];
                 
                 label.appendChild(colorBox);
                 label.appendChild(document.createTextNode(product));
                 
-                // Add to DOM
                 item.appendChild(checkbox);
                 item.appendChild(label);
                 controlsDiv.appendChild(item);
             });
         }
 
-        // ============ INITIALIZATION ============
-        // Initialize app on page load
-        function initializeApp() {
-            setupControls(); // Create filter checkboxes
-            renderChart(); // Draw initial chart
+        function setupDepartmentControls() {
+            const controlsDiv = document.getElementById('departmentControls');
+            if (!controlsDiv) return;
+            
+            const departments = [...new Set(data.users.map(u => u.department))].sort();
+            
+            departments.forEach(dept => visibleDepartments.add(dept));
+            
+            departments.forEach(department => {
+                const item = document.createElement('div');
+                item.className = 'checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = 'dept-' + department;
+                checkbox.checked = true;
+                
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        visibleDepartments.add(department);
+                    } else {
+                        visibleDepartments.delete(department);
+                    }
+                    renderChart();
+                });
+                
+                const label = document.createElement('label');
+                label.htmlFor = 'dept-' + department;
+                label.appendChild(document.createTextNode(department));
+                
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                controlsDiv.appendChild(item);
+            });
         }
 
-        // ============ EVENT LISTENERS ============
-        // Sort mode dropdown
+        function initializeApp() {
+            setupControls();
+            setupDepartmentControls();
+            renderChart();
+        }
+
         document.getElementById('sortBy').addEventListener('change', (e) => {
             sortMode = e.target.value;
             renderChart();
         });
 
-        // Logarithmic scale toggle
         document.getElementById('logScale').addEventListener('change', (e) => {
             logScale = e.target.checked;
             renderChart();
         });
 
-        // Pie chart on hover toggle
         document.getElementById('enablePieChart').addEventListener('change', (e) => {
             pieChartEnabled = e.target.checked;
         });
 
-        // Group threshold slider
         document.getElementById('groupThreshold').addEventListener('input', (e) => {
             groupThreshold = parseInt(e.target.value);
             document.getElementById('groupValue').textContent = '$' + groupThreshold;
             renderChart();
         });
 
-        // Initialize on DOM ready
         document.addEventListener('DOMContentLoaded', initializeApp);
     </script>
 </body>
