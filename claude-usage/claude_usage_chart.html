@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Usage by User and Product</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .top-row {
+            display: flex;
+            gap: 20px;
+        }
+        .main {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            height: fit-content;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .excluded-panel, .unlicensed-panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 24px;
+            color: #333;
+        }
+        h2 {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 12px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .control-group label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 13px;
+        }
+        .checkbox-item input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+        .color-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            display: inline-block;
+        }
+        .slider-container {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        input[type="range"] {
+            flex: 1;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #333;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #333;
+            cursor: pointer;
+            border: none;
+        }
+        .slider-value {
+            font-size: 12px;
+            color: #666;
+            min-width: 40px;
+            text-align: right;
+        }
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        .toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        select {
+            padding: 6px;
+            font-size: 13px;
+            border: 0.5px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+        }
+        .chart-wrapper {
+            position: relative;
+            height: 900px;
+        }
+        .info-section {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        .info-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .list-item {
+            font-size: 12px;
+            color: #666;
+            padding: 4px;
+            background: white;
+            border-radius: 3px;
+            border: 0.5px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .list-item.unlicensed {
+            color: #e74c3c;
+        }
+        .list-item-content {
+            flex: 1;
+        }
+        .list-item-amount {
+            font-size: 11px;
+            color: #999;
+            margin-left: 4px;
+        }
+        .list-item-remove {
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+            margin-left: 4px;
+            transition: color 0.2s;
+        }
+        .list-item-remove:hover {
+            color: #e74c3c;
+        }
+        .excluded-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .excluded-card {
+            font-size: 11px;
+            padding: 8px;
+            background: #fef5f5;
+            border-radius: 4px;
+            border: 0.5px solid #daa;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+            text-align: center;
+        }
+        .excluded-name {
+            color: #999;
+            text-decoration: line-through;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .excluded-restore {
+            background: none;
+            border: 0.5px solid #daa;
+            color: #999;
+            cursor: pointer;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        .excluded-restore:hover {
+            color: #27ae60;
+            border-color: #27ae60;
+            background: #f0f8f0;
+        }
+        .unlicensed-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 8px;
+        }
+        .unlicensed-item {
+            font-size: 11px;
+            padding: 8px;
+            background: #fff5f5;
+            border-radius: 4px;
+            border: 0.5px solid #e74c3c;
+            color: #e74c3c;
+        }
+        .pie-tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            pointer-events: none;
+            display: none;
+            min-width: 250px;
+        }
+        .pie-tooltip h3 {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .pie-chart-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+        }
+        @media (max-width: 1200px) {
+            .top-row {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Claude Usage by User and Product</h1>
+        
+        <div class="top-row">
+            <div class="main">
+                <div class="pie-tooltip" id="pieTooltip">
+                    <h3 id="pieTitle"></h3>
+                    <div class="pie-chart-container">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="usageChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <h2>Filters</h2>
+                <div class="controls" id="controls"></div>
+                
+                <h2>View Options</h2>
+                <div class="control-group">
+                    <label for="sortBy">Sort by</label>
+                    <select id="sortBy">
+                        <option value="spend">Spend (low to high)</option>
+                        <option value="alphabetical">Alphabetical (A-Z)</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <div class="toggle">
+                        <input type="checkbox" id="logScale" />
+                        <label for="logScale">Logarithmic scale</label>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <div class="toggle">
+                        <input type="checkbox" id="enablePieChart" checked />
+                        <label for="enablePieChart">Pie chart on hover</label>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="groupThreshold">Group users under $</label>
+                    <div class="slider-container">
+                        <input type="range" id="groupThreshold" min="0" max="500" value="0" step="10" />
+                        <span class="slider-value" id="groupValue">$0</span>
+                    </div>
+                </div>
+                
+                <div class="info-section" id="groupedSection" style="display: none;">
+                    <h3>Grouped users</h3>
+                    <div class="list" id="groupedList"></div>
+                </div>
+                
+                <div class="info-section" id="inactiveSection" style="display: none;">
+                    <h3>No usage</h3>
+                    <div class="list" id="inactiveList"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="excluded-panel" id="excludedPanel" style="display: none;">
+            <h2>Excluded users (click restore to add back)</h2>
+            <div class="excluded-grid" id="excludedGrid"></div>
+        </div>
+        
+        <div class="unlicensed-panel" id="unlicensedPanel" style="display: none;">
+            <h2>Licensed users not shown on chart</h2>
+            <div class="unlicensed-grid" id="unlicensedGrid"></div>
+        </div>
+    </div>
+
+    <script>
+        const password = prompt("Enter password:");
+     if (password !== "baskyou") {
+         document.body.innerHTML = "<h1>Access denied</h1>";
+         throw new Error("Access denied");
+     }
+        const licensedEmails = new Set(["emmanuel@bask.health", "abdelaziz@bask.health", "eduardo@bask.health", "m.ibrahim@bask.health", "nico@bask.health", "mauro@bask.health", "mlofty@bask.health", "mayank@bask.health", "andres@bask.health", "mcsellin@bask.health", "matheus@bask.health", "juanjo@bask.health", "ty@bask.health", "pratap@bask.health", "nada@bask.health", "m.atef@bask.health", "peter@bask.health", "pooja@bask.health", "jithin@bask.health", "sandro@bask.health", "andre@bask.health", "iman@bask.health", "ahmed.abdelfatah@bask.health", "joshua@bask.health", "aaron@bask.health", "solomon@bask.health", "robell@bask.health", "marwan@bask.health", "leonardo@bask.health", "jade@bask.health", "sarah@bask.health", "dzmitry@bask.health", "facundo@bask.health", "rajat@bask.health", "eli@bask.health", "mauri@bask.health", "rimon@bask.health", "soham@bask.health", "m.mousa@bask.health", "kiera@bask.health", "dylan@bask.health", "nikhila@bask.health", "samuel@bask.health", "angela@bask.health", "max.vilenchik@bask.health", "abobakr@bask.health", "paulo@bask.health", "zachary@dorf.nyc", "angel@bask.health", "khaled@bask.health", "zainab@bask.health", "gal@bask.health", "gaurav@bask.health", "deepak@bask.health", "supriya@bask.health", "taciano@bask.health", "luiz@bask.health", "taher@bask.health", "jake@bask.health", "marty@bask.health", "marcello@bask.health", "siddhi@bask.health", "ziad@bask.health", "tim@bask.health", "kate@bask.health", "juan@bask.health", "ebrahim@bask.health", "muaaz@bask.health"]);
+        
+        const data = {
+            users: [
+                {"email": "pooja@bask.health", "Browser Extension": 0, "Chat": 0.91, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "marcello@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 4.85, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "angel@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 8.84, "Office Agents": 0},
+                {"email": "juan@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 10.72, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "ziad@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 10.82, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "eli@bask.health", "Browser Extension": 0, "Chat": 12.41, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "samuel@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 13.51, "Office Agents": 0},
+                {"email": "khaled@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 13.67, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "iman@bask.health", "Browser Extension": 0, "Chat": 19.1, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "zainab@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 21.3, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "darren@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 21.31, "Cowork": 0, "Office Agents": 0},
+                {"email": "sarah@bask.health", "Browser Extension": 0, "Chat": 22.48, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "azul@bask.health", "Browser Extension": 0, "Chat": 27.28, "Claude Code": 0, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "eduardo@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 31.92, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "rajat@bask.health", "Browser Extension": 0, "Chat": 0.85, "Claude Code": 43.589999999999996, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "facundo@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 70.99, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "kate@bask.health", "Browser Extension": 0, "Chat": 1.35, "Claude Code": 0, "Claude Design": 0, "Cowork": 79.62, "Office Agents": 0},
+                {"email": "andres@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 86.94, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "gaurav@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 103.21, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "mayank@bask.health", "Browser Extension": 0, "Chat": 0.52, "Claude Code": 117.79, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "abdelaziz@bask.health", "Browser Extension": 0, "Chat": 1.21, "Claude Code": 130.47, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "emmanuel@bask.health", "Browser Extension": 0.12, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 150.56, "Office Agents": 0},
+                {"email": "sandro@bask.health", "Browser Extension": 0.79, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 152.66, "Office Agents": 0},
+                {"email": "mlofty@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 122.45, "Claude Design": 0, "Cowork": 49.61, "Office Agents": 0},
+                {"email": "rimon@bask.health", "Browser Extension": 0, "Chat": 2.3, "Claude Code": 171.42999999999998, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "juanjo@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 0, "Claude Design": 0, "Cowork": 175.71, "Office Agents": 0},
+                {"email": "ahmed.abdelfatah@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 177.22000000000003, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "jithin@bask.health", "Browser Extension": 0, "Chat": 171.83999999999997, "Claude Code": 8.31, "Claude Design": 1.83, "Cowork": 0, "Office Agents": 0},
+                {"email": "mauro@bask.health", "Browser Extension": 0.02, "Chat": 38.83, "Claude Code": 181.71, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "taher@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 224.42, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "paulo@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 246.80999999999997, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "marwan@bask.health", "Browser Extension": 0.61, "Chat": 0, "Claude Code": 280.33, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "zachary@dorf.nyc", "Browser Extension": 0, "Chat": 0, "Claude Code": 279.75, "Claude Design": 0, "Cowork": 3.97, "Office Agents": 0},
+                {"email": "mauri@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 261.44, "Claude Design": 0, "Cowork": 28.12, "Office Agents": 0},
+                {"email": "solomon@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 306.17999999999995, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "peter@bask.health", "Browser Extension": 27.92, "Chat": 4.48, "Claude Code": 0, "Claude Design": 0, "Cowork": 14.31, "Office Agents": 263.28},
+                {"email": "ebrahim@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 354.36, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "muaaz@bask.health", "Browser Extension": 0, "Chat": 1.2, "Claude Code": 360.97, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "dzmitry@bask.health", "Browser Extension": 19.64, "Chat": 0, "Claude Code": 364.82, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "luiz@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 437.6, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "leonardo@bask.health", "Browser Extension": 0, "Chat": 2.36, "Claude Code": 499.73, "Claude Design": 0, "Cowork": 3.3800000000000003, "Office Agents": 0},
+                {"email": "aaron@bask.health", "Browser Extension": 0, "Chat": 39.4, "Claude Code": 471.61, "Claude Design": 48.05, "Cowork": 0, "Office Agents": 0},
+                {"email": "matheus@bask.health", "Browser Extension": 0, "Chat": 2.76, "Claude Code": 887.67, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "m.mousa@bask.health", "Browser Extension": 0, "Chat": 93.04, "Claude Code": 1001.42, "Claude Design": 0, "Cowork": 0, "Office Agents": 0},
+                {"email": "nico@bask.health", "Browser Extension": 0, "Chat": 0, "Claude Code": 2293.13, "Claude Design": 0, "Cowork": 0, "Office Agents": 0}
+            ],
+            products: ["Browser Extension", "Chat", "Claude Code", "Claude Design", "Cowork", "Office Agents"]
+        };
+
+        const productColors = {
+            'Claude Code': '#7F77DD',
+            'Chat': '#1D9E75',
+            'Cowork': '#D85A30',
+            'Claude Design': '#993C1D',
+            'Office Agents': '#185FA5',
+            'Browser Extension': '#5F5E5A'
+        };
+
+        let chart = null;
+        let pieChart = null;
+        const visibleProducts = new Set(data.products);
+        let logScale = false;
+        let groupThreshold = 0;
+        let sortMode = 'spend';
+        let pieChartEnabled = true;
+        let ctrlPressed = false;
+        const excludedUsers = new Set(JSON.parse(localStorage.getItem('excludedUsers') || '[]'));
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Control' || e.key === 'Meta') {
+                ctrlPressed = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Control' || e.key === 'Meta') {
+                ctrlPressed = false;
+            }
+        });
+
+        function getVisibleUsers() {
+            const filtered = data.users.filter(u => {
+                if (excludedUsers.has(u.email)) return false;
+                const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? u[p] : 0), 0);
+                return total > 0;
+            });
+            
+            if (sortMode === 'alphabetical') {
+                return filtered.sort((a, b) => a.email.localeCompare(b.email));
+            }
+            return filtered;
+        }
+
+        function getGroupedUsers() {
+            return getVisibleUsers().filter(u => {
+                const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? u[p] : 0), 0);
+                return total <= groupThreshold && groupThreshold > 0;
+            }).sort((a, b) => {
+                const totalA = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? a[p] : 0), 0);
+                const totalB = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? b[p] : 0), 0);
+                return totalB - totalA;
+            });
+        }
+
+        function getInactiveUsers() {
+            return data.users.filter(u => {
+                if (excludedUsers.has(u.email)) return false;
+                const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? u[p] : 0), 0);
+                return total === 0;
+            });
+        }
+
+        function getExcludedUsers() {
+            return Array.from(excludedUsers)
+                .map(email => data.users.find(u => u.email === email))
+                .filter(u => u)
+                .sort((a, b) => a.email.localeCompare(b.email));
+        }
+
+        function getUnlicensedUsers() {
+            return data.users.filter(u => !licensedEmails.has(u.email.toLowerCase()));
+        }
+
+        function getUnlistedLicensedUsers() {
+            const chartEmails = new Set(data.users.map(u => u.email.toLowerCase()));
+            return Array.from(licensedEmails).filter(email => !chartEmails.has(email.toLowerCase())).sort();
+        }
+
+        function formatData() {
+            const visibleUsers = getVisibleUsers();
+            const grouped = getGroupedUsers();
+            const regular = visibleUsers.filter(u => {
+                const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? u[p] : 0), 0);
+                return total > groupThreshold || groupThreshold === 0;
+            });
+
+            let finalUsers = regular;
+
+            if (grouped.length > 0) {
+                const groupedData = { email: `[${grouped.length} users <$${groupThreshold}]` };
+                data.products.forEach(p => {
+                    groupedData[p] = grouped.reduce((sum, u) => sum + u[p], 0);
+                });
+                finalUsers.push(groupedData);
+            }
+
+            return finalUsers;
+        }
+
+        function saveExcluded() {
+            localStorage.setItem('excludedUsers', JSON.stringify(Array.from(excludedUsers)));
+        }
+
+        function excludeUser(email) {
+            excludedUsers.add(email);
+            saveExcluded();
+            renderChart();
+        }
+
+        function restoreUser(email) {
+            excludedUsers.delete(email);
+            saveExcluded();
+            renderChart();
+        }
+
+        function showPieChart(user, x, y) {
+            if (!pieChartEnabled) return;
+            
+            const tooltip = document.getElementById('pieTooltip');
+            const pieChartCanvas = document.getElementById('pieChart');
+            
+            if (!pieChartCanvas) return;
+            
+            const chartData = [];
+            const chartLabels = [];
+            const chartColors = [];
+            
+            data.products.forEach(product => {
+                const amount = user[product] || 0;
+                if (amount > 0 && visibleProducts.has(product)) {
+                    chartLabels.push(product);
+                    chartData.push(amount);
+                    chartColors.push(productColors[product]);
+                }
+            });
+            
+            document.getElementById('pieTitle').textContent = user.email.split('@')[0];
+            
+            if (pieChart) {
+                pieChart.destroy();
+            }
+            
+            const total = chartData.reduce((a, b) => a + b, 0);
+            
+            pieChart = new Chart(pieChartCanvas.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: chartColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 10 },
+                                padding: 6,
+                                boxWidth: 8,
+                                generateLabels: (chart) => {
+                                    const data = chart.data;
+                                    return data.labels.map((label, i) => ({
+                                        text: label + ' (' + ((data.datasets[0].data[i] / total) * 100).toFixed(0) + '%)',
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        hidden: false,
+                                        index: i
+                                    }));
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const pct = ((context.parsed / total) * 100).toFixed(1);
+                                    return '$' + context.parsed.toFixed(2) + ' (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            tooltip.style.display = 'block';
+            tooltip.style.left = Math.min(x, window.innerWidth - 280) + 'px';
+            tooltip.style.top = (y - 20) + 'px';
+        }
+
+        function hidePieChart() {
+            const tooltip = document.getElementById('pieTooltip');
+            tooltip.style.display = 'none';
+        }
+
+        function renderChart() {
+            const finalUsers = formatData();
+            const visibleDatasets = data.products
+                .filter(p => visibleProducts.has(p))
+                .map(product => ({
+                    label: product,
+                    data: finalUsers.map(u => u[product] || 0),
+                    backgroundColor: productColors[product] || '#999',
+                    borderWidth: 0
+                }));
+            
+            const ctx = document.getElementById('usageChart');
+            if (!ctx) return;
+            
+            const canvasContext = ctx.getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+            
+            const scaleType = logScale ? 'logarithmic' : 'linear';
+            const labels = finalUsers.map(u => {
+                const isLicensed = licensedEmails.has(u.email.toLowerCase());
+                const displayName = u.email.split('@')[0];
+                return displayName;
+            });
+            
+            chart = new Chart(canvasContext, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: visibleDatasets
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            type: scaleType,
+                            ticks: { callback: v => '$' + v.toFixed(0) }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: {
+                                color: function(context) {
+                                    const user = finalUsers[context.index];
+                                    if (user && !licensedEmails.has(user.email.toLowerCase())) {
+                                        return '#e74c3c';
+                                    }
+                                    return '#333';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            enabled: true,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 13, weight: 'bold' },
+                            bodyFont: { size: 12 },
+                            callbacks: {
+                                title: (tooltipItems) => {
+                                    if (tooltipItems.length > 0) {
+                                        return tooltipItems[0].label;
+                                    }
+                                    return '';
+                                },
+                                afterTitle: () => {
+                                    return '';
+                                },
+                                label: (context) => {
+                                    const user = finalUsers[context.dataIndex];
+                                    const product = context.dataset.label;
+                                    const amount = user[product] || 0;
+                                    
+                                    if (amount > 0) {
+                                        return product + ': $' + amount.toFixed(2);
+                                    }
+                                    return '';
+                                },
+                                filter: (context) => {
+                                    const user = finalUsers[context.dataIndex];
+                                    const product = context.dataset.label;
+                                    const amount = user[product] || 0;
+                                    return amount > 0;
+                                }
+                            }
+                        }
+                    },
+                    onHover: (event, activeElements) => {
+                        const canvas = event.native.target;
+                        if (activeElements.length > 0 && event.type === 'mousemove') {
+                            const canvasRect = canvas.getBoundingClientRect();
+                            const index = activeElements[0].index;
+                            const user = finalUsers[index];
+                            const shouldShow = ctrlPressed ? !pieChartEnabled : pieChartEnabled;
+                            if (shouldShow) {
+                                showPieChart(user, event.native.clientX, event.native.clientY);
+                            } else {
+                                hidePieChart();
+                            }
+                        } else if (event.type === 'mouseleave') {
+                            hidePieChart();
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements && elements.length > 0) {
+                            const index = elements[0].index;
+                            const user = finalUsers[index];
+                            if (user && !user.email.startsWith('[')) {
+                                hidePieChart();
+                                excludeUser(user.email);
+                            }
+                        }
+                    }
+                }
+            });
+
+            updateSidebar();
+        }
+
+        function updateSidebar() {
+            updateGroupedList();
+            updateInactiveList();
+            updateExcludedPanel();
+            updateUnlicensedPanel();
+        }
+
+        function updateGroupedList() {
+            const grouped = getGroupedUsers();
+            const section = document.getElementById('groupedSection');
+            const list = document.getElementById('groupedList');
+
+            if (grouped.length === 0 || groupThreshold === 0) {
+                section.style.display = 'none';
+            } else {
+                section.style.display = 'block';
+                list.innerHTML = grouped.map(u => {
+                    const total = data.products.reduce((sum, p) => sum + (visibleProducts.has(p) ? u[p] : 0), 0);
+                    const isLicensed = licensedEmails.has(u.email.toLowerCase());
+                    const className = isLicensed ? '' : ' unlicensed';
+                    return `<div class="list-item${className}"><div class="list-item-content">${u.email.split('@')[0]}<span class="list-item-amount">$${total.toFixed(2)}</span></div><button class="list-item-remove" onclick="excludeUser('${u.email}')" title="Remove">✕</button></div>`;
+                }).join('');
+            }
+        }
+
+        function updateInactiveList() {
+            const inactive = getInactiveUsers();
+            const section = document.getElementById('inactiveSection');
+            const list = document.getElementById('inactiveList');
+
+            if (inactive.length === 0) {
+                section.style.display = 'none';
+            } else {
+                section.style.display = 'block';
+                list.innerHTML = inactive.map(u => {
+                    const isLicensed = licensedEmails.has(u.email.toLowerCase());
+                    const className = isLicensed ? '' : ' unlicensed';
+                    return `<div class="list-item${className}"><div class="list-item-content">${u.email.split('@')[0]}</div><button class="list-item-remove" onclick="excludeUser('${u.email}')" title="Remove">✕</button></div>`;
+                }).join('');
+            }
+        }
+
+        function updateExcludedPanel() {
+            const excluded = getExcludedUsers();
+            const panel = document.getElementById('excludedPanel');
+            const grid = document.getElementById('excludedGrid');
+
+            if (excluded.length === 0) {
+                panel.style.display = 'none';
+            } else {
+                panel.style.display = 'block';
+                grid.innerHTML = excluded.map(u => {
+                    const total = data.products.reduce((sum, p) => sum + u[p], 0);
+                    return `<div class="excluded-card"><div class="excluded-name">${u.email.split('@')[0]}</div><button class="excluded-restore" onclick="restoreUser('${u.email}')">Restore</button></div>`;
+                }).join('');
+            }
+        }
+
+        function updateUnlicensedPanel() {
+            const unlisted = getUnlistedLicensedUsers();
+            const panel = document.getElementById('unlicensedPanel');
+            const grid = document.getElementById('unlicensedGrid');
+
+            if (unlisted.length === 0) {
+                panel.style.display = 'none';
+            } else {
+                panel.style.display = 'block';
+                grid.innerHTML = unlisted.map(email => {
+                    return `<div class="unlicensed-item">${email.split('@')[0]}</div>`;
+                }).join('');
+            }
+        }
+
+        function setupControls() {
+            const controlsDiv = document.getElementById('controls');
+            if (!controlsDiv) return;
+            
+            data.products.forEach(product => {
+                const item = document.createElement('div');
+                item.className = 'checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = 'product-' + product;
+                checkbox.checked = true;
+                
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        visibleProducts.add(product);
+                    } else {
+                        visibleProducts.delete(product);
+                    }
+                    renderChart();
+                });
+                
+                const label = document.createElement('label');
+                label.htmlFor = 'product-' + product;
+                
+                const colorBox = document.createElement('span');
+                colorBox.className = 'color-box';
+                colorBox.style.backgroundColor = productColors[product];
+                
+                label.appendChild(colorBox);
+                label.appendChild(document.createTextNode(product));
+                
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                controlsDiv.appendChild(item);
+            });
+        }
+
+        function initializeApp() {
+            setupControls();
+            renderChart();
+        }
+
+        document.getElementById('sortBy').addEventListener('change', (e) => {
+            sortMode = e.target.value;
+            renderChart();
+        });
+
+        document.getElementById('logScale').addEventListener('change', (e) => {
+            logScale = e.target.checked;
+            renderChart();
+        });
+
+        document.getElementById('enablePieChart').addEventListener('change', (e) => {
+            pieChartEnabled = e.target.checked;
+        });
+
+        document.getElementById('groupThreshold').addEventListener('input', (e) => {
+            groupThreshold = parseInt(e.target.value);
+            document.getElementById('groupValue').textContent = '$' + groupThreshold;
+            renderChart();
+        });
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
